@@ -1,6 +1,7 @@
 from pytorch_lightning.core.lightning import LightningModule
 
 from recibrew.data_util import construct_torchtext_iterator
+from recibrew.nn.gru_bahdanau import Encoder, Decoder
 from recibrew.nn.transformers import FullTransformer
 import torch
 from torch.optim import AdamW
@@ -8,15 +9,15 @@ from torch.optim import AdamW
 
 class TransformersLightning(LightningModule):
     """
-    Research environment
+    Using Transformer. Research environment
     """
 
     def __init__(self, train_csv='../data/processed/train.csv', dev_csv='../data/processed/dev.csv',
                  test_csv='../data/processed/test.csv', num_embedding=128, dim_feedforward=512, num_encoder_layer=4,
                  num_decoder_layer=4, dropout=0.3, padding_idx=1, lr=0.001, nhead=2):
         super().__init__()
-        self.lr=lr
-        self.constructed_iterator_field =\
+        self.lr = lr
+        self.constructed_iterator_field = \
             construct_torchtext_iterator(train_csv, dev_csv, test_csv, device='cuda', fix_length=None)
         num_vocab = len(self.constructed_iterator_field['src_field'].vocab)
         self.transformer_params = dict(num_embedding=num_embedding, dim_feedforward=dim_feedforward,
@@ -63,11 +64,104 @@ class TransformersLightning(LightningModule):
         """
         return self.constructed_iterator_field['train_iter']
 
-    # def test_step(self, batch, batch_idx):
-    #     pass
-    #
-    # def test_epoch_end(self, outputs):
-    #     pass
 
-    # def test_dataloader(self):
-    #     return self.constructed_iterator_field['test_iter']
+class GRUBahdanauLightning(LightningModule):
+    """
+    GRU + Bahdanau attention, Research environment
+    """
+
+    def __init__(self, train_csv='../data/processed/train.csv', dev_csv='../data/processed/dev.csv',
+                 test_csv='../data/processed/test.csv', lr=1e-3, gru_params=None, padding_idx=1,
+                 max_len=140):
+        """
+
+        :param train_csv:
+        :param dev_csv:
+        :param test_csv:
+        :param lr:
+        :param gru_params: dict that contains:
+            embedding_dim : word embedding
+            hidden_dim    : hidden unit on decoder and encoder
+            enc_bidirectional : boolean whether the GRU encoder is bidirectional or not
+            enc_gru_layers : int , how many stack GRU in encoder
+
+        :param padding_idx:
+        :param max_len:
+        """
+        super().__init__()
+        if gru_params is None:
+            raise Exception('gru_params need to be filled')
+        self.lr = lr
+        self.constructed_iterator_field = \
+            construct_torchtext_iterator(train_csv, dev_csv, test_csv, device='cuda', fix_length=None)
+        self.vocab_size = len(self.constructed_iterator_field['src_field'].vocab)  # src and tgt have same vocabulary
+        gru_params.update({'vocab_size': self.vocab_size})
+        self.encoder = Encoder(**gru_params)
+        self.decoder = Decoder(**gru_params)
+        self._extract_gru_params(gru_params)
+        self.shared_embedding = torch.nn.Embedding(num_embeddings=self.vocab_size, embedding_dim=self.embedding_dim,
+                                                   padding_idx=padding_idx)
+        self.criterion = torch.nn.CrossEntropyLoss(ignore_index=padding_idx)
+        self.max_len = max_len
+
+    def _extract_gru_params(self, gru_params):
+        self.embedding_dim = gru_params.get('embedding_dim', None)
+        self.vocab_size = gru_params.get('vocab_size', None)
+
+    def forward_encoder(self, src):
+        src_embedded = self.shared_embedding(src)
+        enc_out, hidden = self.encoder(src_embedded)
+        return enc_out, hidden
+
+    def forward_decoder_train(self, tgt, hidden, enc_out):
+        tgt_targets = tgt[1:, :]
+        tgt_inputs = tgt[:-1, :]
+        loss = 0
+        counter = 0
+
+        # Use teacher forcing
+        for i in range(tgt_targets.shape[0]):
+            tgt_input = tgt_inputs[i:i+1, :]
+            tgt_gold = tgt_targets[i, :]
+            tgt_embedded = self.shared_embedding(tgt_input)
+            pred, hidden, _ = self.decoder.forward(tgt_embedded, hidden, enc_out)
+            loss += self.criterion.forward(pred, tgt_gold)
+            counter += 1
+        loss = loss / counter
+        return loss
+
+    def forward(self, src, tgt, train=True):
+        if not train:
+            raise NotImplementedError()
+        else:
+            enc_out, hidden = self.forward_encoder(src)
+            loss = self.forward_decoder_train(tgt, hidden, enc_out)
+            return loss
+
+    def training_step(self, batch, batch_idx):
+        src, tgt = batch.src, batch.tgt
+        loss = self.forward(src, tgt, train=True)
+        return {'loss': loss}
+
+    def train_dataloader(self):
+        """
+        Load Trainer data loader here
+        """
+        return self.constructed_iterator_field['train_iter']
+
+    def configure_optimizers(self):
+        return AdamW(self.parameters(), lr=self.lr)
+
+    def val_dataloader(self):
+        return self.constructed_iterator_field['val_iter']
+
+    def validation_step(self, batch, batch_idx):
+        src, tgt = batch.src, batch.tgt
+        loss = self.forward(src, tgt, train=True)
+        return {'val_loss': loss}
+
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': avg_loss}
+        return {'val_loss': avg_loss, 'log': tensorboard_logs,
+                'progress_bar': {'avg_loss': avg_loss.cpu().numpy()}}
