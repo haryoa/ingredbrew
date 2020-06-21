@@ -11,10 +11,13 @@ class Encoder(Module):
         self.hidden_dim = hidden_dim
 
         self.embedding = Embedding(vocab_size, embedding_dim, padding_idx=padding_idx)
-        self.gru = GRU(embedding_dim, hidden_dim, dropout=0.2, num_layers=gru_layers)
+        self.gru = GRU(embedding_dim, hidden_dim, dropout=dropout, num_layers=gru_layers)
 
     def forward(self, x):
+        # x = [ seq_len, batch_size]
         x = self.embedding(x)
+
+        # x = [ seq_len, batch_size , num_embedding ]
         output_gru, hidden_state = self.gru(x)
         return output_gru, hidden_state
 

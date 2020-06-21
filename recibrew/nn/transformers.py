@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from torch.nn import Transformer, Embedding, Dropout, Module
 import torch
 import math
@@ -80,3 +82,17 @@ class FullTransformer(Module):
 
         # final_out : [ seq_len, batch_size, vocab_size ]
         return out_to_logit
+
+    def forward_encoder(self, src: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        src_pad_mask = self.make_pad_mask(src)
+        out_emb_enc = self.pos_embedding(self.inp_embedding(src))
+        return self.trfm.encoder(out_emb_enc, src_key_padding_mask=src_pad_mask), src_pad_mask
+
+    def forward_decoder(self, tgt: torch.Tensor, memory: torch.Tensor, src_pad_mask: torch.Tensor) -> torch.Tensor:
+        tgt_pad_mask = self.make_pad_mask(tgt)
+        out_emb_dec = self.pos_embedding(self.inp_embedding(tgt))
+        tgt_mask = self.trfm.generate_square_subsequent_mask(len(tgt)).to(tgt.device)
+        out_trf = self.trfm.decoder(out_emb_dec, memory, tgt_mask=tgt_mask, tgt_key_padding_mask=tgt_pad_mask,
+                                    memory_key_padding_mask=src_pad_mask)
+        out_trf = self.linear_out(out_trf)
+        return out_trf
