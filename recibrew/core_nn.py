@@ -103,6 +103,7 @@ class GRUBahdanauLightning(LightningModule):
                                                    padding_idx=padding_idx)
         self.criterion = torch.nn.CrossEntropyLoss(ignore_index=padding_idx)
         self.max_len = max_len
+        self.save_hyperparameters()
 
     def _extract_gru_params(self, gru_params):
         self.embedding_dim = gru_params.get('embedding_dim', None)
