@@ -13,7 +13,7 @@ class TransformersLightning(LightningModule):
 
     def __init__(self, train_csv='../data/processed/train.csv', dev_csv='../data/processed/dev.csv',
                  test_csv='../data/processed/test.csv', num_embedding=128, dim_feedforward=512, num_encoder_layer=4,
-                 num_decoder_layer=4, dropout=0.3, padding_idx=1, lr=0.001):
+                 num_decoder_layer=4, dropout=0.3, padding_idx=1, lr=0.001, nhead=2):
         super().__init__()
         self.lr=lr
         self.constructed_iterator_field =\
@@ -22,7 +22,7 @@ class TransformersLightning(LightningModule):
         self.transformer_params = dict(num_embedding=num_embedding, dim_feedforward=dim_feedforward,
                                        num_decoder_layer=num_decoder_layer,
                                        num_encoder_layer=num_encoder_layer, dropout=dropout, padding_idx=padding_idx,
-                                       num_vocab=num_vocab)
+                                       num_vocab=num_vocab, nhead=nhead)
         self.save_hyperparameters()
         self.full_transformer = FullTransformer(**self.transformer_params)
 

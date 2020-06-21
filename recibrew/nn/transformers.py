@@ -24,7 +24,7 @@ class PositionalEncoding(Module):
 class FullTransformer(Module):
 
     def __init__(self, num_vocab, num_embedding=128, dim_feedforward=512, num_encoder_layer=4,
-                 num_decoder_layer=4, dropout=0.3, padding_idx=1, max_seq_len=140):
+                 num_decoder_layer=4, dropout=0.3, padding_idx=1, max_seq_len=140, nhead=8):
         super(FullTransformer, self).__init__()
 
         self.padding_idx = padding_idx
@@ -37,7 +37,7 @@ class FullTransformer(Module):
 
         self.trfm = Transformer(d_model=num_embedding, dim_feedforward=dim_feedforward,
                                 num_encoder_layers=num_encoder_layer, num_decoder_layers=num_decoder_layer,
-                                dropout=dropout)
+                                dropout=dropout, nhead=nhead)
         self.linear_out = torch.nn.Linear(num_embedding, num_vocab)
 
     def make_pad_mask(self, inp: torch.Tensor) -> torch.Tensor:
