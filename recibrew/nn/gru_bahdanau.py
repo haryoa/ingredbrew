@@ -52,7 +52,7 @@ class Decoder(Module):
     def __init__(self, embedding_dim, hidden_dim, vocab_size, enc_gru_layers, enc_bidirectional, **kwargs):
         super(Decoder, self).__init__()
         self.attention = BahdanauAttention(embedding_dim, enc_gru_layers=enc_gru_layers,
-                                            enc_bidirectional=True)
+                                           enc_bidirectional=enc_bidirectional)
         self.gru = torch.nn.GRU(embedding_dim +
                                 (hidden_dim * 2 if enc_bidirectional else hidden_dim),
                                 hidden_dim * enc_gru_layers * 2 if enc_bidirectional else hidden_dim * enc_gru_layers)
