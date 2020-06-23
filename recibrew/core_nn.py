@@ -5,6 +5,7 @@ from recibrew.nn.gru_bahdanau import Encoder, Decoder
 from recibrew.nn.transformers import FullTransformer
 import torch
 from torch.optim import AdamW
+from torchtext.data import Field
 
 
 class TransformersLightning(LightningModule):
@@ -64,6 +65,34 @@ class TransformersLightning(LightningModule):
         """
         return self.constructed_iterator_field['train_iter']
 
+    def predict_inference_src(self, src: str, max_len: int = 140) -> str:
+        """
+        Used on inference to predict source
+        :param src: String text as source
+        :param max_len: max length of the generator
+        :return: predicted text
+        """
+        src_field, tgt_field = \
+            self.constructed_iterator_field['src_field'], self.constructed_iterator_field['tgt_field']
+        end_token_id = src_field.vocab.stoi['</s>']
+        src_input = [src_field.vocab[x] for x in '<s> {} </s>'.format(src).split()]
+
+        src_tensor = torch.LongTensor(src_input).unsqueeze(1).cuda()
+        memory, src_pad_mask = self.full_transformer.forward_encoder(src_tensor)
+
+        tgt_input = [tgt_field.vocab[x] for x in '<s>'.split()]
+
+        for i in range(max_len):
+            tgt_tensor = torch.LongTensor(tgt_input).unsqueeze(1).cuda()
+
+            output = self.full_transformer.forward_decoder(tgt_tensor, memory,
+                                                            src_pad_mask)
+            out_token = output.argmax(2)[-1].item()
+            tgt_input.append(out_token)
+            if out_token == end_token_id:
+                break
+        return ' '.join([tgt_field.vocab.itos[x] for x in tgt_input])
+
 
 class GRUBahdanauLightning(LightningModule):
     """
@@ -114,6 +143,34 @@ class GRUBahdanauLightning(LightningModule):
         enc_out, hidden = self.encoder(src_embedded)
         return enc_out, hidden
 
+    def predict_inference_src(self, src: str, max_len: int = 140) -> str:
+        """
+        Used on inference to predict source
+        :param src: String text as source
+        :param max_len: max length of the generator
+        :return: predicted text
+        """
+        src_field, tgt_field = \
+            self.constructed_iterator_field['src_field'], self.constructed_iterator_field['tgt_field']
+        end_token_id = src_field.vocab.stoi['</s>']
+        src_input = [src_field.vocab[x] for x in '<s> {} </s>'.format(src).split()]
+        gbl = self.eval()
+        src_tensor = torch.LongTensor(src_input).unsqueeze(1).cuda()
+        enc_out, hidden = gbl.forward_encoder(src_tensor)
+        tgt_input = [tgt_field.vocab[x] for x in '<s>'.split()]
+        tgt_tensor = torch.LongTensor(tgt_input).unsqueeze(1).cuda()
+
+        for i in range(max_len):
+            tgt_embedded = gbl.shared_embedding(tgt_tensor)
+            output, hidden, _ = gbl.Ldecoder.forward(tgt_embedded, hidden, enc_out)
+            out_token = output.argmax(1)[-1].item()
+            tgt_input.append(out_token)
+            tgt_tensor = torch.LongTensor([out_token]).unsqueeze(1).cuda()
+
+            if out_token == end_token_id:
+                break
+        return ' '.join([tgt_field.vocab.itos[x] for x in tgt_input])
+
     def forward_decoder_train(self, tgt, hidden, enc_out):
         tgt_targets = tgt[1:, :]
         tgt_inputs = tgt[:-1, :]
@@ -122,7 +179,7 @@ class GRUBahdanauLightning(LightningModule):
 
         # Use teacher forcing
         for i in range(tgt_targets.shape[0]):
-            tgt_input = tgt_inputs[i:i+1, :]
+            tgt_input = tgt_inputs[i:i + 1, :]
             tgt_gold = tgt_targets[i, :]
             tgt_embedded = self.shared_embedding(tgt_input)
             pred, hidden, _ = self.decoder.forward(tgt_embedded, hidden, enc_out)
