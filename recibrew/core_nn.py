@@ -162,7 +162,7 @@ class GRUBahdanauLightning(LightningModule):
 
         for i in range(max_len):
             tgt_embedded = gbl.shared_embedding(tgt_tensor)
-            output, hidden, _ = gbl.Ldecoder.forward(tgt_embedded, hidden, enc_out)
+            output, hidden, _ = gbl.decoder.forward(tgt_embedded, hidden, enc_out)
             out_token = output.argmax(1)[-1].item()
             tgt_input.append(out_token)
             tgt_tensor = torch.LongTensor([out_token]).unsqueeze(1).cuda()
