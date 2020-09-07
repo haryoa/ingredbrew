@@ -15,11 +15,11 @@ class TransformersLightning(LightningModule):
 
     def __init__(self, train_csv='../data/processed/train.csv', dev_csv='../data/processed/dev.csv',
                  test_csv='../data/processed/test.csv', num_embedding=128, dim_feedforward=512, num_encoder_layer=4,
-                 num_decoder_layer=4, dropout=0.3, padding_idx=1, lr=0.001, nhead=2, max_vocab=3000):
+                 num_decoder_layer=4, dropout=0.3, padding_idx=1, lr=0.001, nhead=2, max_vocab=3000, vocab_fix_length=None):
         super().__init__()
         self.lr = lr
         self.constructed_iterator_field = \
-            construct_torchtext_iterator(train_csv, dev_csv, test_csv, device='cuda', fix_length=None, max_vocab=max_vocab)
+            construct_torchtext_iterator(train_csv, dev_csv, test_csv, device='cuda', fix_length=vocab_fix_length, max_vocab=max_vocab)
         num_vocab = len(self.constructed_iterator_field['src_field'].vocab)
         self.transformer_params = dict(num_embedding=num_embedding, dim_feedforward=dim_feedforward,
                                        num_decoder_layer=num_decoder_layer,
