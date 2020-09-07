@@ -4,7 +4,7 @@ A self project to generate food ingredients (Indonesia) !
 
 ## Article
 
-TBD
+https://medium.com/towards-artificial-intelligence/recibrew-find-out-the-foods-ingredients-dbc2a4e37383
 
 ## How to run
 
