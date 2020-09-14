@@ -27,7 +27,7 @@ def construct_torchtext_iterator(train_csv: str, dev_csv: str, test_csv: str, de
                       fix_length=fix_length)
     tgt_field = Field(sequential=True, tokenize=word_tokenize, lower=True, init_token='<s>', eos_token='</s>',
                       fix_length=fix_length )
-    fields = [('no', None), ('src', src_field), ("tgt", tgt_field)]
+    fields = [('src', src_field), ("tgt", tgt_field)]
     train_ds, dev_ds, test_ds = TabularDataset.splits(path='.', format='csv', train=train_csv, validation=dev_csv,
                                                       test=test_csv, skip_header=True,
                                                       fields=fields)
